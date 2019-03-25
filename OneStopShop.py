@@ -1,7 +1,8 @@
 import openpyxl
 import argparse
 
-# TODO: Include support for csv files using the built in Python parser
+# TODO: Include support for csv files using the built in Python CSV parser
+
 
 def startup():
 
@@ -20,7 +21,7 @@ def startup():
         return
 
     # This first sheet will always exist, since a workbook cannot exist without a sheet
-    aggregated_donations = analyze(workbook[workbook.sheetnames[0]])
+    aggregated_donations = analyze(workbook[workbook.sheetnames[0]], args.name, args.committee, args.donation)
 
     if aggregated_donations is None:
         print("Either this file contains no data, or something unexpected went wrong.")
@@ -32,8 +33,7 @@ def startup():
 def produce_parser():
     parser = argparse.ArgumentParser(description="This tool is designed to simplify the process of analyzing and "
                                                  "interpreting the data found in FEC donation information by "
-                                                 "aggregating donations for each person listed in the given Excel "
-                                                 "spreadsheet.")
+                                                 "aggregating donations for each person listed in the given dataset.")
     parser.add_argument("filename", help="the file to read donation data from")
     parser.add_argument("-n", "--name", default="N", metavar="", help="the column where the donors name can be found")
     parser.add_argument("-c", "--committee", default="B", metavar="", help="the column where the committee "
@@ -42,13 +42,12 @@ def produce_parser():
                                                                            "can be found")
     return parser.parse_args()
 
-def analyze(data_sheet):
+
+def analyze(data_sheet, name_col, committee_col, donation_col):
 
     # Check the sheet format
-    # TODO: Use arguments with defaults (argparse) to determine which cols should have what data
-
-    if data_sheet["N1"].value != "contributor_name" or data_sheet["B1"].value != "committee_name" or \
-            data_sheet["AH1"].value != "contribution_receipt_amount":
+    if data_sheet[name_col + "1"].value != "contributor_name" or data_sheet[committee_col + "1"].value != "committee_name" or \
+            data_sheet[donation_col + "1"].value != "contribution_receipt_amount":
         print("This file is improperly formatted. Check the file and try again.")
         return
 
@@ -57,7 +56,7 @@ def analyze(data_sheet):
     # Note: this does not account for typos and misspelled names
     for index in range(data_sheet.min_row + 1, data_sheet.max_row + 1):
 
-        name, org, don_amt = parse_row(data_sheet[index])
+        name, org, don_amt = parse_row(data_sheet[index], name_col, committee_col, donation_col)
 
         # TODO: This is my entire data structure here: worth optimizing once it works
         # Ignore all rows that have either no org, no name, or no donation
@@ -73,14 +72,26 @@ def analyze(data_sheet):
     return aggregated_donations
 
 
-def parse_row(row):
+def parse_row(row, name_col, committee_col, donation_col):
     # (name, organization, donation amount)
     # The indexes have to be done like this because openpyxl returns a tuple of columns
-    return row[ord("N") % 65].value, row[ord("B") % 65].value, row[26 + ord("H") % 65].value
+    return row[letter_number(name_col)].value, row[letter_number(committee_col)].value, \
+           row[letter_number(donation_col)].value
+
+
+# TODO: There is certainly a way to do this with more algorithmic ~sizzle~
+def letter_number(col):
+
+    if len(col) == 1:
+        return ord(col) % 65
+    elif len(col) == 2:
+        return (((ord(col[0]) % 65) + 1) * 26) + (ord(col[1]) % 65)
+    else:
+        return None
 
 
 def save_result(filename, workbook, aggregated_donations):
-    
+
     # TODO: This will always create a new sheet - is this the intended behavior?
     result_sheet = workbook.create_sheet("aggregate_data")
 
@@ -95,9 +106,9 @@ def save_result(filename, workbook, aggregated_donations):
         for org in donation_entry:
 
             # Output goes to rows A, B, C
-            result_sheet["A{0}".format(curr_row)] = name
-            result_sheet["B{0}".format(curr_row)] = org
-            result_sheet["C{0}".format(curr_row)] = donation_entry[org]
+            result_sheet["A{}".format(curr_row)] = name
+            result_sheet["B{}".format(curr_row)] = org
+            result_sheet["C{}".format(curr_row)] = donation_entry[org]
             curr_row += 1
 
     print("Saving result...")
