@@ -1,11 +1,10 @@
 import openpyxl
 import argparse
 
-# TODO: Can I rewrite this without openpyxl and just use the .csv?
+# TODO: Include support for csv files using the built in Python parser
 
 def startup():
 
-    filename, workbook = None, None
     args = produce_parser()
 
     try:
@@ -16,6 +15,9 @@ def startup():
     except FileNotFoundError:
         print("This file could not be opened. Try a different file.")
         return
+    except RuntimeError as error:
+        print("An unknown error occurred", error)
+        return
 
     # This first sheet will always exist, since a workbook cannot exist without a sheet
     aggregated_donations = analyze(workbook[workbook.sheetnames[0]])
@@ -24,7 +26,7 @@ def startup():
         print("Either this file contains no data, or something unexpected went wrong.")
         return
 
-    save_result(filename, workbook, aggregated_donations)
+    save_result(args.filename, workbook, aggregated_donations)
 
 
 def produce_parser():
@@ -78,6 +80,7 @@ def parse_row(row):
 
 
 def save_result(filename, workbook, aggregated_donations):
+    
     # TODO: This will always create a new sheet - is this the intended behavior?
     result_sheet = workbook.create_sheet("aggregate_data")
 
