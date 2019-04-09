@@ -4,6 +4,7 @@ import argparse
 # TODO: Include support for csv files using the built in Python CSV parser
 # TODO: Progress indicator for huge files?
 
+
 def startup():
 
     args = produce_parser()
@@ -21,6 +22,7 @@ def startup():
         return
 
     # This first sheet will always exist, since a workbook cannot exist without a sheet
+    print(workbook.sheetnames)
     aggregated_donations = analyze(workbook[workbook.sheetnames[0]], args.name, args.committee, args.donation)
 
     if aggregated_donations is None:
