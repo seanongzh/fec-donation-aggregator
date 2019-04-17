@@ -22,7 +22,6 @@ def startup():
         return
 
     # This first sheet will always exist, since a workbook cannot exist without a sheet
-    print(workbook.sheetnames)
     aggregated_donations = analyze(workbook[workbook.sheetnames[0]], args.name, args.committee, args.donation)
 
     if aggregated_donations is None:
@@ -37,18 +36,18 @@ def produce_parser():
                                                  "interpreting the data found in FEC donation information by "
                                                  "aggregating donations for each person listed in the given dataset.")
     parser.add_argument("filename", help="the file to read donation data from")
-    parser.add_argument("-n", "--name", default="N", metavar="", help="the column where the donors name can be found")
+    parser.add_argument("-n", "--name", default="O", metavar="", help="the column where the donors name can be found")
     parser.add_argument("-c", "--committee", default="B", metavar="", help="the column where the committee "
                                                                            "receiving the donation can be found")
-    parser.add_argument("-d", "--donation", default="AH", metavar="", help="the column where the amount donated "
+    parser.add_argument("-d", "--donation", default="AI", metavar="", help="the column where the amount donated "
                                                                            "can be found")
     return parser.parse_args()
 
 
-def analyze(data_sheet, name_col, committee_col, donation_col):
+def analyze( data_sheet, name_col, committee_col, donation_col):
 
     # Check the sheet format
-    if data_sheet[name_col + "1"].value != "contributor_name" or data_sheet[committee_col + "1"].value != "committee_name" or \
+    if data_sheet[name_col + "1"].value != "contrib_name_adj" or data_sheet[committee_col + "1"].value != "committee_name" or \
             data_sheet[donation_col + "1"].value != "contribution_receipt_amount":
         print("This file is improperly formatted. Check the file and try again.")
         return
@@ -94,24 +93,34 @@ def letter_number(col):
 
 def save_result(filename, workbook, aggregated_donations):
 
-    # TODO: This will always create a new sheet - is this the intended behavior?
     result_sheet = workbook.create_sheet("aggregate_data")
 
     result_sheet["A1"] = "donor_name"
     result_sheet["B1"] = "committee_name"
     result_sheet["C1"] = "aggregate_amount"
+    result_sheet["D1"] = "department"
+
+    departmentList = {}
+    directorySheet = workbook["DirectoryResults"]
+
+    # Build the reference set of departments using the information in DirectoryResults
+    for index in range(directorySheet.min_row + 1, directorySheet.max_row + 1):
+        if directorySheet["B{0}".format(index)].value is not None:
+            departmentList[directorySheet["A{0}".format(index)].value] = directorySheet["B{0}".format(index)].value
 
     # Start at 2, to account for the Excel double offset (start at 1 and a header row)
     curr_row = 2
 
     for (name, donation_entry) in aggregated_donations.items():
-        for org in donation_entry:
+        if name in departmentList:
+            for org in donation_entry:
 
-            # Output goes to rows A, B, C
-            result_sheet["A{}".format(curr_row)] = name
-            result_sheet["B{}".format(curr_row)] = org
-            result_sheet["C{}".format(curr_row)] = donation_entry[org]
-            curr_row += 1
+                # Output goes to rows A, B, C, D, E
+                result_sheet["A{}".format(curr_row)] = name
+                result_sheet["B{}".format(curr_row)] = org
+                result_sheet["C{}".format(curr_row)] = donation_entry[org]
+                result_sheet["D{}".format(curr_row)] = departmentList[name]
+                curr_row += 1
 
     print("Saving result...")
     workbook.save(filename)

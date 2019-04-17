@@ -1,8 +1,8 @@
 from openpyxl import load_workbook
 
-FILE_NAME = "FullDataSet.xlsx"
-DATA_SHEET = "SourceData"
-TYPO_SHEET = "TypoFixing"
+FILE_NAME = "2019-2020.xlsx"
+DATA_SHEET = "Sheet1"
+TYPO_SHEET = "TypoListing"
 
 
 dataBook = load_workbook(FILE_NAME)
@@ -16,7 +16,9 @@ for index in range(typoSheet.min_row + 1, typoSheet.max_row + 1):
         typoList[typoSheet["A{0}".format(index)].value] = typoSheet["B{0}".format(index)].value
 
 for index in range(dataSheet.min_row + 1, dataSheet.max_row + 1):
-    currName = dataSheet["N{0}".format(index)].value
+
+    currName = dataSheet["S{0}".format(index)].value + ", " + dataSheet["Q{0}".format(index)].value
+
     if currName in typoList:
         dataSheet["O{0}".format(index)] = typoList[currName]
     else:
