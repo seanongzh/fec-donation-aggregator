@@ -2,27 +2,22 @@ import openpyxl
 import argparse
 import requests
 
-# TODO: Include support for csv files using the built in Python CSV parser
-# TODO: Progress indicator for huge files?
+# Create a file named config.py that contains your API key for the FEC
+import config
 
-FEC_API = "VDkmeFlFlO9ZRao7AyDyPMrgEeSdwJXO8UdN7faS"
+# TODO: Include support for csv files using the built in Python CSV parser
+
+FEC_API = config.fec_key
 BASE_URL = "http://api.open.fec.gov/v1/committee/"
 
+### Main program flow ###
 
 def startup():
 
     args = produce_parser()
+    workbook = open_xlsx(args.filename)
 
-    try:
-        workbook = openpyxl.load_workbook(args.filename)
-    except openpyxl.utils.exceptions.InvalidFileException:
-        print("This program accepts only .xlsx, .xlsm, .xltx, and .xltm\nTry a different file.")
-        return
-    except FileNotFoundError:
-        print("This file could not be opened. Try a different file.")
-        return
-    except RuntimeError as error:
-        print("An unknown error occurred", error)
+    if workbook is None:
         return
 
     # This first sheet will always exist, since a workbook cannot exist without a sheet
@@ -32,29 +27,14 @@ def startup():
         print("Either this file contains no data, or something unexpected went wrong.")
         return
 
-    save_result(args.filename, workbook, aggregated_donations)
-
-
-def produce_parser():
-    parser = argparse.ArgumentParser(description="This tool is designed to simplify the process of analyzing and "
-                                                 "interpreting the data found in FEC donation information by "
-                                                 "aggregating donations for each person listed in the given dataset.")
-    parser.add_argument("filename", help="the file to read donation data from")
-    parser.add_argument("-n", "--name", default="O", metavar="", help="the column where the donors name can be found")
-    parser.add_argument("-c", "--committee", default="B", metavar="", help="the column where the committee "
-                                                                           "receiving the donation can be found")
-    parser.add_argument("-d", "--donation", default="AI", metavar="", help="the column where the amount donated "
-                                                                           "can be found")
-    parser.add_argument("-i", "--id", default="A", metavar="", help="indicates which column the committee ID can be "
-                                                                    "found in. The program will determine the political "
-                                                                    "affiliation of each committee using the FEC API")
-    return parser.parse_args()
+    save_result(args.filename, args.department, workbook, aggregated_donations)
 
 
 def analyze(data_sheet, name_col, committee_col, donation_col, comm_id_col):
 
     # Check the sheet format
-    if data_sheet[name_col + "1"].value != "contrib_name_adj" or data_sheet[committee_col + "1"].value != "committee_name" or \
+    if data_sheet[name_col + "1"].value != "contrib_name_adj" or \
+            data_sheet[committee_col + "1"].value != "committee_name" or \
             data_sheet[donation_col + "1"].value != "contribution_receipt_amount" or \
             data_sheet[comm_id_col + "1"].value != "committee_id":
         print("This file is improperly formatted. Check the file and try again.")
@@ -87,7 +67,7 @@ def analyze(data_sheet, name_col, committee_col, donation_col, comm_id_col):
     return aggregated_donations
 
 
-def save_result(filename, workbook, aggregated_donations):
+def save_result(filename, department_file, workbook, aggregated_donations):
 
     result_sheet = workbook.create_sheet("aggregate_data")
 
@@ -101,8 +81,7 @@ def save_result(filename, workbook, aggregated_donations):
 
     department_list = {}
 
-    # TODO: Un-hard-code this directory results location
-    directory_book = openpyxl.load_workbook("./spreadsheets/DirectoryResults.xlsx")
+    directory_book = open_xlsx(department_file)
     directory_sheet = directory_book[directory_book.sheetnames[0]]
 
     # Build the reference set of departments using the information in DirectoryResults
@@ -112,7 +91,6 @@ def save_result(filename, workbook, aggregated_donations):
 
     # Start at 2, to account for the Excel double offset (start at 1 and a header row)
     curr_row = 2
-
     # Memoize it, baby (160 ftw)
     committee_party = {}
 
@@ -137,6 +115,41 @@ def save_result(filename, workbook, aggregated_donations):
     print("Saving result...")
     workbook.save(filename)
     return
+
+
+### Helper functions ###
+
+
+def produce_parser():
+    parser = argparse.ArgumentParser(description="This tool is designed to simplify the process of analyzing and "
+                                                 "interpreting the data found in FEC donation information by "
+                                                 "aggregating donations for each person listed in the given dataset.")
+    parser.add_argument("filename", help="the file to read donation data from")
+    parser.add_argument("department", help="the file containing department affiliation for each person in the dataset")
+    parser.add_argument("-n", "--name", default="O", metavar="", help="the column where the donors name can be found")
+    parser.add_argument("-c", "--committee", default="B", metavar="", help="the column where the committee "
+                                                                           "receiving the donation can be found")
+    parser.add_argument("-d", "--donation", default="AI", metavar="", help="the column where the amount donated "
+                                                                           "can be found")
+    parser.add_argument("-i", "--id", default="A", metavar="", help="indicates which column the committee ID can be "
+                                                                    "found in. The program will determine the political"
+                                                                    " affiliation of each committee using the FEC API")
+    return parser.parse_args()
+
+
+# Safely opens a .xlsx file using openpyxl, catching errors and providing error output along the way
+def open_xlsx(filename):
+    try:
+        return openpyxl.load_workbook(filename)
+    except openpyxl.utils.exceptions.InvalidFileException:
+        print("This program accepts only .xlsx, .xlsm, .xltx, and .xltm\nTry a different file.")
+        return None
+    except FileNotFoundError:
+        print("This file could not be opened. Try a different file.")
+        return None
+    except RuntimeError as error:
+        print("An unknown error occurred", error)
+        return None
 
 
 # Returns information from the given row as a tuple of name, organization, donation amount, and committee ID number
