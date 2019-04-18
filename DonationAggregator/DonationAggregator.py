@@ -30,7 +30,8 @@ def startup():
 def analyze(data_sheet, name_col, committee_col, donation_col, comm_id_col):
 
     # Check the sheet format
-    if data_sheet[name_col + "1"].value != "contrib_name_adj" or data_sheet[committee_col + "1"].value != "committee_name" or \
+    if data_sheet[name_col + "1"].value != "contrib_name_adj" or \
+            data_sheet[committee_col + "1"].value != "committee_name" or \
             data_sheet[donation_col + "1"].value != "contribution_receipt_amount" or \
             data_sheet[comm_id_col + "1"].value != "committee_id":
         print("This file is improperly formatted. Check the file and try again.")
