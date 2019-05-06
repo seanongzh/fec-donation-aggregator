@@ -13,7 +13,7 @@ BASE_URL = "http://api.open.fec.gov/v1/committee/"
 
 def startup():
 
-    args = produce_parser()
+    args = _produce_parser()
 
     # Create a master workbook to save results into
     master_book = openpyxl.Workbook()
@@ -47,7 +47,7 @@ def analyze(subdirectory, committee_col, donation_col, comm_id_col):
     # This gives us every file for each subdirectory
     for file in os.listdir(subdirectory):
         if file.endswith(".xlsx"):
-            workbook = open_xlsx(os.path.join(subdirectory, file))
+            workbook = _open_xlsx(os.path.join(subdirectory, file))
 
             if workbook is None:
                 return
@@ -65,7 +65,7 @@ def analyze(subdirectory, committee_col, donation_col, comm_id_col):
             # Note: this does not account for typos and misspelled names
             for index in range(data_sheet.min_row + 1, data_sheet.max_row + 1):
 
-                org, don_amt, org_id = parse_row(data_sheet[index], committee_col, donation_col, comm_id_col)
+                org, don_amt, org_id = _parse_row(data_sheet[index], committee_col, donation_col, comm_id_col)
 
                 # TODO: This is my entire data structure here: worth optimizing once it works
                 # Ignore all rows that have either no org, no name, or no donation
@@ -106,7 +106,7 @@ def save_result(master_book, aggregated_donations):
 
             # Find the party affiliation of the committee
             if donation_entry[org]["id"] not in committee_party:
-                committee_party[donation_entry[org]["id"]] = get_committee_party(donation_entry[org]["id"])
+                committee_party[donation_entry[org]["id"]] = _get_committee_party(donation_entry[org]["id"])
 
             # Output goes to rows A, B, C, D, E
             result_sheet["A{}".format(curr_row)] = name
@@ -123,7 +123,7 @@ def save_result(master_book, aggregated_donations):
 ### Helper functions ###
 
 
-def produce_parser():
+def _produce_parser():
     parser = argparse.ArgumentParser(description="This tool is designed to simplify the process of analyzing and "
                                                  "interpreting the data found in FEC donation information by "
                                                  "aggregating donations for each person listed in the given dataset.")
@@ -140,7 +140,7 @@ def produce_parser():
 
 
 # Safely opens a .xlsx file using openpyxl, catching errors and providing error output along the way
-def open_xlsx(filename):
+def _open_xlsx(filename):
     try:
         return openpyxl.load_workbook(filename)
     except openpyxl.utils.exceptions.InvalidFileException:
@@ -156,16 +156,16 @@ def open_xlsx(filename):
 
 # Returns information from the given row as a tuple of name, organization, donation amount, and committee ID number
 # (name, organization, donation amount, committee ID number)
-def parse_row(row, committee_col, donation_col, comm_id_col=None):
+def _parse_row(row, committee_col, donation_col, comm_id_col=None):
     # The indexes have to be done like this because openpyxl returns a tuple of columns
-    return row[letter_number(committee_col)].value, row[letter_number(donation_col)].value, \
-           row[letter_number(comm_id_col)].value
+    return row[_letter_number(committee_col)].value, row[_letter_number(donation_col)].value, \
+           row[_letter_number(comm_id_col)].value
 
 
 # TODO: There is certainly a way to do this with more algorithmic ~sizzle~
 # Returns the number associated with the Excel column of the given number.
 # E.g. A --> 0, AC --> 28
-def letter_number(col):
+def _letter_number(col):
 
     if len(col) == 1:
         return ord(col) % 65
@@ -177,7 +177,7 @@ def letter_number(col):
 
 # Uses the FEC API to retrieve the party affiliated with the committee with the given ID
 # E.g. DEM for Democratic, REP for Republican. Returns "UNK" for committees with no registered party
-def get_committee_party(id_number):
+def _get_committee_party(id_number):
     response = requests.get(BASE_URL + id_number, params={"api_key": FEC_API})
     response_data = response.json()
     if response.status_code == 200:
