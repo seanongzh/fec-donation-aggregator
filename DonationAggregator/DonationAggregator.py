@@ -1,6 +1,8 @@
 import openpyxl
 import argparse
 import requests
+import os
+import json
 
 # TODO: Include support for csv files using the built in Python CSV parser
 
@@ -12,105 +14,112 @@ BASE_URL = "http://api.open.fec.gov/v1/committee/"
 def startup():
 
     args = produce_parser()
-    workbook = open_xlsx(args.filename)
 
-    if workbook is None:
-        return
+    # Create a master workbook to save results into
+    master_book = openpyxl.Workbook()
+    master_donations = {}
+    # The given directory will contain a series of subdirectories
+    for donor_name in os.listdir(args.directory):
 
-    # This first sheet will always exist, since a workbook cannot exist without a sheet
-    aggregated_donations = analyze(workbook[workbook.sheetnames[0]], args.name, args.committee, args.donation, args.id)
+        subdirectory = os.path.join(args.directory, donor_name)
 
-    if aggregated_donations is None:
-        print("Either this file contains no data, or something unexpected went wrong.")
-        return
+        if os.path.isdir(subdirectory):
 
-    save_result(args.filename, args.department, workbook, aggregated_donations)
+            aggregate_book = openpyxl.Workbook()
 
 
-def analyze(data_sheet, name_col, committee_col, donation_col, comm_id_col):
+            # This first sheet will always exist, since a workbook cannot exist without a sheet
+            aggregated_donations = analyze(subdirectory, args.committee, args.donation, args.id)
 
-    # Check the sheet format
-    if data_sheet[name_col + "1"].value != "contrib_name_adj" or \
-            data_sheet[committee_col + "1"].value != "committee_name" or \
-            data_sheet[donation_col + "1"].value != "contribution_receipt_amount" or \
-            data_sheet[comm_id_col + "1"].value != "committee_id":
-        print("This file is improperly formatted. Check the file and try again.")
-        return
+            if aggregated_donations is None:
+                print("Either this file contains no data, or something unexpected went wrong.")
+                return
+
+            master_donations[donor_name] = aggregated_donations
+
+            #save_result(donor_name, aggregate_book.active, aggregated_donations)
+
+
+def analyze(subdirectory, committee_col, donation_col, comm_id_col):
 
     aggregated_donations = {}
 
-    # Note: this does not account for typos and misspelled names
-    for index in range(data_sheet.min_row + 1, data_sheet.max_row + 1):
+    # This gives us every file for each subdirectory
+    for file in os.listdir(subdirectory):
+        if file.endswith(".xlsx"):
+            workbook = open_xlsx(os.path.join(subdirectory, file))
 
-        name, org, don_amt, org_id = parse_row(data_sheet[index], name_col, committee_col, donation_col, comm_id_col)
+            if workbook is None:
+                return
 
-        # TODO: This is my entire data structure here: worth optimizing once it works
-        # Ignore all rows that have either no org, no name, or no donation
-        if name and org and don_amt:
-            if name not in aggregated_donations:
-                aggregated_donations[name] = {}
+            data_sheet = workbook[workbook.sheetnames[0]]
 
-            if org not in aggregated_donations[name]:
-                aggregated_donations[name][org] = {}
-                aggregated_donations[name][org]["amount"] = 0
-                aggregated_donations[name][org]["id"] = org_id
+            # Check the sheet format
+            if data_sheet[committee_col + "1"].value != "committee_name" or \
+                    data_sheet[donation_col + "1"].value != "contribution_receipt_amount" or \
+                    data_sheet[comm_id_col + "1"].value != "committee_id":
+                print("This file is improperly formatted. Check the file and try again.")
+                continue
 
-            aggregated_donations[name][org]["amount"] += don_amt
 
-        # Print progress as a percent every 500 entries
-        if index % 500 == 0:
-            print("Progress: {:.2%}".format(index / (data_sheet.max_row + 1)))
+            # Note: this does not account for typos and misspelled names
+            for index in range(data_sheet.min_row + 1, data_sheet.max_row + 1):
+
+                org, don_amt, org_id = parse_row(data_sheet[index], committee_col, donation_col, comm_id_col)
+
+                # TODO: This is my entire data structure here: worth optimizing once it works
+                # Ignore all rows that have either no org, no name, or no donation
+                if org and don_amt:
+                    if org not in aggregated_donations:
+                        aggregated_donations[org] = {}
+                        aggregated_donations[org]["amount"] = 0
+                        aggregated_donations[org]["id"] = org_id
+
+                    aggregated_donations[org]["amount"] += don_amt
+
+                # Print progress as a percent every 500 entries
+                if index % 500 == 0:
+                    print("Progress: {:.2%}".format(index / (data_sheet.max_row + 1)))
 
     return aggregated_donations
 
 
-def save_result(filename, department_file, workbook, aggregated_donations):
+def save_result(donor_name, result_sheet, aggregated_donations):
 
-    result_sheet = workbook.create_sheet("aggregate_data")
-
-    # Write headers to the results sheet
-    result_sheet["A1"] = "donor_name"
-    result_sheet["B1"] = "donor_department"
-    result_sheet["C1"] = "committee_name"
-    result_sheet["D1"] = "committee_id"
-    result_sheet["E1"] = "committee_affiliation"
-    result_sheet["F1"] = "aggregate_amount"
-
-    department_list = {}
-
-    directory_book = open_xlsx(department_file)
-    directory_sheet = directory_book[directory_book.sheetnames[0]]
-
-    # Build the reference set of departments using the information in DirectoryResults
-    for index in range(directory_sheet.min_row + 1, directory_sheet.max_row + 1):
-        if directory_sheet["B{0}".format(index)].value is not None:
-            department_list[directory_sheet["A{0}".format(index)].value] = directory_sheet["B{0}".format(index)].value
+    if result_sheet.max_row == 1:
+        print("Empty sheet")
+        # Write headers to the results sheet
+        result_sheet["A1"] = "donor_name"
+        result_sheet["B1"] = "committee_name"
+        result_sheet["C1"] = "committee_id"
+        result_sheet["D1"] = "committee_affiliation"
+        result_sheet["E1"] = "aggregate_amount"
 
     # Start at 2, to account for the Excel double offset (start at 1 and a header row)
-    curr_row = 2
+    curr_row = result_sheet.max_row
+
+    print("Writing to row: ", curr_row)
+
     # Memoize it, baby (160 ftw)
     committee_party = {}
 
-    for (name, donation_entry) in aggregated_donations.items():
-        if name in department_list:
-            for org in donation_entry:
+    for (committee_name, donation_entry) in aggregated_donations.items():
 
-                # Find the party affiliation of the committee
-                if donation_entry[org]["id"] not in committee_party:
-                    committee_party[donation_entry[org]["id"]] = get_committee_party(donation_entry[org]["id"])
+        # Find the party affiliation of the committee
+        if donation_entry[committee_name]["id"] not in committee_party:
+            committee_party[donation_entry[committee_name]["id"]] = get_committee_party(donation_entry[committee_name]["id"])
 
-                # Output goes to rows A, B, C, D, E
-                result_sheet["A{}".format(curr_row)] = name
-                result_sheet["B{}".format(curr_row)] = department_list[name]
-                result_sheet["C{}".format(curr_row)] = org
-                result_sheet["D{}".format(curr_row)] = donation_entry[org]["id"]
-                result_sheet["E{}".format(curr_row)] = committee_party[donation_entry[org]["id"]]
-                result_sheet["F{}".format(curr_row)] = donation_entry[org]["amount"]
+        # Output goes to rows A, B, C, D, E
+        result_sheet["A{}".format(curr_row)] = name
+        result_sheet["B{}".format(curr_row)] = org
+        result_sheet["C{}".format(curr_row)] = donation_entry[org]["id"]
+        result_sheet["D{}".format(curr_row)] = committee_party[donation_entry[org]["id"]]
+        result_sheet["E{}".format(curr_row)] = donation_entry[org]["amount"]
 
-                curr_row += 1
-
-    print("Saving result...")
-    workbook.save(filename)
+        curr_row += 1
+    print(result_sheet)
+    # print("Saving result...")
+    # workbook.save(filename)
     return
 
 
@@ -121,12 +130,10 @@ def produce_parser():
     parser = argparse.ArgumentParser(description="This tool is designed to simplify the process of analyzing and "
                                                  "interpreting the data found in FEC donation information by "
                                                  "aggregating donations for each person listed in the given dataset.")
-    parser.add_argument("filename", help="the file to read donation data from")
-    parser.add_argument("department", help="the file containing department affiliation for each person in the dataset")
-    parser.add_argument("-n", "--name", default="O", metavar="", help="the column where the donors name can be found")
+    parser.add_argument("directory", help="the directory to read donation data from")
     parser.add_argument("-c", "--committee", default="B", metavar="", help="the column where the committee "
                                                                            "receiving the donation can be found")
-    parser.add_argument("-d", "--donation", default="AI", metavar="", help="the column where the amount donated "
+    parser.add_argument("-d", "--donation", default="AH", metavar="", help="the column where the amount donated "
                                                                            "can be found")
     parser.add_argument("-i", "--id", default="A", metavar="", help="indicates which column the committee ID can be "
                                                                     "found in. The program will determine the political"
@@ -144,17 +151,17 @@ def open_xlsx(filename):
     except FileNotFoundError:
         print("This file could not be opened. Try a different file.")
         return None
-    except RuntimeError as error:
+    except Exception as error:
         print("An unknown error occurred", error)
         return None
 
 
 # Returns information from the given row as a tuple of name, organization, donation amount, and committee ID number
 # (name, organization, donation amount, committee ID number)
-def parse_row(row, name_col, committee_col, donation_col, comm_id_col=None):
+def parse_row(row, committee_col, donation_col, comm_id_col=None):
     # The indexes have to be done like this because openpyxl returns a tuple of columns
-    return row[letter_number(name_col)].value, row[letter_number(committee_col)].value, \
-               row[letter_number(donation_col)].value, row[letter_number(comm_id_col)].value
+    return row[letter_number(committee_col)].value, row[letter_number(donation_col)].value, \
+           row[letter_number(comm_id_col)].value
 
 
 # TODO: There is certainly a way to do this with more algorithmic ~sizzle~
