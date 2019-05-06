@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 from openpyxl import load_workbook
 
 DIRECTORY_URL = "https://directory.tufts.edu/searchresults.cgi"
-WORKBOOK_NAME = "Working_Copy_MASTER.xlsx"
+WORKBOOK_NAME = "DirectoryResults_2017-2018.xlsx"
 NAME_SHEET = "DirectoryResults"
 
 
