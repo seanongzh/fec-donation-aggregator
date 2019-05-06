@@ -1,9 +1,10 @@
-import openpyxl
 import argparse
-import requests
 import os
+import openpyxl
+import requests
 
 # TODO: Include support for csv files using the built in Python CSV parser
+# TODO: Make the API key a Python environment value
 
 FEC_API = "VDkmeFlFlO9ZRao7AyDyPMrgEeSdwJXO8UdN7faS"
 BASE_URL = "http://api.open.fec.gov/v1/committee/"
