@@ -1,7 +1,7 @@
 # USAGE: party_geo.py [filename.xlsx]
 # Calls FEC API for each committee in a given list, returns party and geo affiliations for each.
 # List is structured in a spreadsheet as:
-#   [committee_name] | [committee_id] | [committee_party] | [committee_geo]
+#   [committee_name] | [committee_id] | [committee_party] | [committee_geo] | [committee_designation]
 # List is assumed to be the spreadsheet labelled "master" in a given workbook.
 
 import openpyxl, requests, sys, getopt
@@ -26,6 +26,9 @@ def startup(filename):
 
         # Write geo (state) affiliation to 4th column
         ws.cell(row = i, column = 4, value = get_committee_geo(id))
+
+        # Write designation to 5th column
+        ws.cell(row = i, column = 5, value = get_committee_designation(id))
     
     wb.save(filename)
 
@@ -48,6 +51,23 @@ def get_committee_geo(id_number):
     response_data = response.json()
     if response.status_code == 200:
         geo = response_data["results"][0]["state"] if response_data["results"][0]["state"] is not None else "UNK"
+        return geo
+    else:
+        print("Unexpected response code: ", response.status_code)
+        return "UNK"
+
+# Uses the FEC API to retrieve the designation of the committee with the given ID
+# (A = authorized by a candidate
+#  J = joint fundraising committee
+#  P = principal campaign committee of a candidate
+#  U = unauthorized
+#  B = lobbyist/registrant PAC
+#  D = leadership PAC)
+def get_committee_designation(id_number):
+    response = requests.get(BASE_URL + id_number, params={"api_key": FEC_API})
+    response_data = response.json()
+    if response.status_code == 200:
+        geo = response_data["results"][0]["designation"] if response_data["results"][0]["designation"] is not None else "UNK"
         return geo
     else:
         print("Unexpected response code: ", response.status_code)
