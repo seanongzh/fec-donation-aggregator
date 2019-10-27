@@ -1,1 +1,3 @@
-config.py
+scripts/config.py
+sheets/
+tests/

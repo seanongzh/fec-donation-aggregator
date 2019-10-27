@@ -30,8 +30,16 @@ def open_xlsx(filename):
 def getDirectoryPage(name):
     rawPage = requests.post(DIRECTORY_URL, data={"type": "Faculty", "search": name})
     soup = BeautifulSoup(rawPage.text, "html.parser")
-    for child in soup.find_all(href=re.compile("department.cgi")):
-        return child.contents[0].strip()
+    dirData = []
+    for child in soup.findAll('td',text=True):
+        dirData.append(child.contents[0])
+    for i in dirData:
+        print(type(i))
+        i.strip()
+        if i.startswith('<a'):
+            print("..")
+    print(dirData)
+    return dirData
 
 # Parser for command-line arguments
 parser = argparse.ArgumentParser(description='Map names in a spreadsheet to \
@@ -45,8 +53,8 @@ nameSheet = dataBook[NAME_SHEET]
 
 for index in range(2, nameSheet.max_row + 1):
     currentName = nameSheet["A{0}".format(index)].value
-    affiliation = getDirectoryPage(currentName)
-    nameSheet["B{0}".format(index)] = affiliation
+    dirData = getDirectoryPage(currentName)
+    nameSheet["B{0}".format(index)] = dirData[0] #affiliation
 
     # Rudimentary backup every 100 entries
     if index % 100 == 0:
