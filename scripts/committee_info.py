@@ -8,8 +8,9 @@ import openpyxl, requests, sys, getopt
 
 # FEC API key is contained in config.py
 import config
-FEC_API = config.fec_key
+FEC_API = config.fec_key_old
 BASE_URL = "http://api.open.fec.gov/v1/committee/"
+NAME_URL = "http://api.open.fec.gov/v1/search/names/committees/"
 
 def startup(filename):
     # Open file given as command line argument
@@ -19,7 +20,11 @@ def startup(filename):
     # For each committee (each row)
     for i in range(2, ws.max_row + 1):
         # Access committee_id, held in 2nd column
-        id = ws.cell(row = i, column = 2).value
+        if ws.cell(row = i, column = 2).value is not None:
+            id = ws.cell(row = i, column = 2).value
+        else:
+            id = get_committee_id(ws.cell(row = i, column = 1).value)
+            ws.cell(row = i, column = 2, value = id)
 
         # Write party affiliation to 3rd column
         ws.cell(row = i, column = 3, value = get_committee_party(id))
@@ -35,6 +40,16 @@ def startup(filename):
 
     wb.save(filename)
 
+# Uses the FEC API to retrieve the committee ID associated with a given name
+def get_committee_id(name):
+    response = requests.get(NAME_URL, params={"api_key": FEC_API, "q": name})
+    response_data = response.json()
+    if response.status_code == 200:
+        id = response_data["results"][0]["id"] if response_data["results"][0]["id"] is not None else "UNK"
+        return id
+    else:
+        print("Unexpected response code (ID): ", response.status_code)
+        return "UNK"
     
 # Uses the FEC API to retrieve the party affiliated with the committee with the given ID
 # E.g. DEM for Democratic, REP for Republican. Returns "UNK" for committees with no registered party
@@ -45,7 +60,7 @@ def get_committee_party(id_number):
         party = response_data["results"][0]["party"] if response_data["results"][0]["party"] is not None else "UNK"
         return party
     else:
-        print("Unexpected response code: ", response.status_code)
+        print("Unexpected response code (Party): ", response.status_code)
         return "UNK"
 
 # Uses the FEC API to retrieve the geographic area (state) affiliated with the committee with the given ID
@@ -57,7 +72,7 @@ def get_committee_geo(id_number):
         geo = response_data["results"][0]["state"] if response_data["results"][0]["state"] is not None else "UNK"
         return geo
     else:
-        print("Unexpected response code: ", response.status_code)
+        print("Unexpected response code (geo): ", response.status_code)
         return "UNK"
 
 # Uses the FEC API to retrieve the designation of the committee with the given ID
@@ -74,7 +89,7 @@ def get_committee_designation(id_number):
         desgn = response_data["results"][0]["designation_full"] if response_data["results"][0]["designation_full"] is not None else "UNK"
         return desgn
     else:
-        print("Unexpected response code: ", response.status_code)
+        print("Unexpected response code (des): ", response.status_code)
         return "UNK"
 
 # Uses the FEC API to retrieve the type of the committee with the given ID
@@ -101,7 +116,7 @@ def get_committee_type(id_number):
         desgn = response_data["results"][0]["committee_type_full"] if response_data["results"][0]["committee_type_full"] is not None else "UNK"
         return desgn
     else:
-        print("Unexpected response code: ", response.status_code)
+        print("Unexpected response code (type): ", response.status_code)
         return "UNK"
 
 if __name__ == '__main__':

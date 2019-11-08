@@ -17,7 +17,7 @@ def startup(file1, file2):
     # For each piece of data in the actual ws (with header row)
     for i in range(2, ws_actual.max_row + 1):
         actual = ws_actual.cell(row = i, column = 1)
-        if i % 250 == 0:
+        if i % 250 == 0 and actual.value is not None:
             print("Fixing " + actual.value + " at row " + str(i))
         # Find the typo fix in fix ws (with header row)
         for j in range(2, ws_fix.max_row + 1): 
