@@ -1,7 +1,7 @@
-# USAGE: party_geo.py [filename.xlsx]
-# Calls FEC API for each committee in a given list, returns party and geo affiliations for each.
+# USAGE: committee_info.py [filename.xlsx]
+# Calls FEC API for each committee in a given list, returns party/geo affiliations and committee type/designation for each.
 # List is structured in a spreadsheet as:
-#   [committee_name] | [committee_id] | [committee_party] | [committee_geo] | [committee_designation]
+#   [committee_name] | [committee_id] | [committee_party] | [committee_geo] | [committee_designation] | [committee_type]
 # List is assumed to be the spreadsheet labelled "master" in a given workbook.
 
 import openpyxl, requests, sys, getopt
@@ -29,9 +29,13 @@ def startup(filename):
 
         # Write designation to 5th column
         ws.cell(row = i, column = 5, value = get_committee_designation(id))
-    
+
+        # Write type to 6th column
+        ws.cell(row = i, column = 6, value = get_committee_type(id))
+
     wb.save(filename)
 
+    
 # Uses the FEC API to retrieve the party affiliated with the committee with the given ID
 # E.g. DEM for Democratic, REP for Republican. Returns "UNK" for committees with no registered party
 def get_committee_party(id_number):
@@ -67,8 +71,35 @@ def get_committee_designation(id_number):
     response = requests.get(BASE_URL + id_number, params={"api_key": FEC_API})
     response_data = response.json()
     if response.status_code == 200:
-        geo = response_data["results"][0]["designation"] if response_data["results"][0]["designation"] is not None else "UNK"
-        return geo
+        desgn = response_data["results"][0]["designation_full"] if response_data["results"][0]["designation_full"] is not None else "UNK"
+        return desgn
+    else:
+        print("Unexpected response code: ", response.status_code)
+        return "UNK"
+
+# Uses the FEC API to retrieve the type of the committee with the given ID
+# (- C communication cost
+#  - D delegate
+#  - E electioneering communication
+#  - H House
+#  - I independent expenditor (person or group)
+#  - N PAC - nonqualified
+#  - O independent expenditure-only (super PACs)
+#  - P presidential
+#  - Q PAC - qualified
+#  - S Senate
+#  - U single candidate independent expenditure
+#  - V PAC with non-contribution account, nonqualified
+#  - W PAC with non-contribution account, qualified
+#  - X party, nonqualified
+#  - Y party, qualified
+#  - Z national party non-federal account)
+def get_committee_type(id_number):
+    response = requests.get(BASE_URL + id_number, params={"api_key": FEC_API})
+    response_data = response.json()
+    if response.status_code == 200:
+        desgn = response_data["results"][0]["committee_type_full"] if response_data["results"][0]["committee_type_full"] is not None else "UNK"
+        return desgn
     else:
         print("Unexpected response code: ", response.status_code)
         return "UNK"
