@@ -8,9 +8,9 @@ import openpyxl, requests, sys, getopt
 
 # FEC API key is contained in config.py
 import config
-FEC_API = config.fec_key_old
+FEC_API = config.fec_key
 BASE_URL = "http://api.open.fec.gov/v1/committee/"
-NAME_URL = "http://api.open.fec.gov/v1/search/names/committees/"
+NAME_URL = "http://api.open.fec.gov/v1/names/committees/"
 
 def startup(filename):
     # Open file given as command line argument
@@ -22,21 +22,29 @@ def startup(filename):
         # Access committee_id, held in 2nd column
         if ws.cell(row = i, column = 2).value is not None:
             id = ws.cell(row = i, column = 2).value
+            print(id)
         else:
+            print(ws.cell(row = i, column = 1).value)
             id = get_committee_id(ws.cell(row = i, column = 1).value)
             ws.cell(row = i, column = 2, value = id)
 
+        # Collapse code into one function so that API calls can be reduced
+        info = get_committee_info(id)
+
         # Write party affiliation to 3rd column
-        ws.cell(row = i, column = 3, value = get_committee_party(id))
+        ws.cell(row = i, column = 3, value = info[0])
 
         # Write geo (state) affiliation to 4th column
-        ws.cell(row = i, column = 4, value = get_committee_geo(id))
+        ws.cell(row = i, column = 4, value = info[1])
 
         # Write designation to 5th column
-        ws.cell(row = i, column = 5, value = get_committee_designation(id))
+        ws.cell(row = i, column = 5, value = info[2])
 
         # Write type to 6th column
-        ws.cell(row = i, column = 6, value = get_committee_type(id))
+        ws.cell(row = i, column = 6, value = info[3])
+
+        if i % 50 == 0:
+            wb.save(filename)
 
     wb.save(filename)
 
@@ -51,6 +59,19 @@ def get_committee_id(name):
         print("Unexpected response code (ID): ", response.status_code)
         return "UNK"
     
+def get_committee_info(id_number):
+    response = requests.get(BASE_URL + id_number, params={"api_key" : FEC_API})
+    response_data = response.json()
+    if response.status_code == 200:
+        party = response_data["results"][0]["party"] if response_data["results"][0]["party"] is not None else "UNK"
+        geo = response_data["results"][0]["state"] if response_data["results"][0]["state"] is not None else "UNK"
+        desgn = response_data["results"][0]["designation_full"] if response_data["results"][0]["designation_full"] is not None else "UNK"
+        type = response_data["results"][0]["committee_type_full"] if response_data["results"][0]["committee_type_full"] is not None else "UNK"
+        return [party, geo, desgn, type]
+    else:
+        print("Unexpected response code: ", response.status_code)
+        return ["UNK", "UNK", "UNK", "UNK"]
+
 # Uses the FEC API to retrieve the party affiliated with the committee with the given ID
 # E.g. DEM for Democratic, REP for Republican. Returns "UNK" for committees with no registered party
 def get_committee_party(id_number):
@@ -113,8 +134,8 @@ def get_committee_type(id_number):
     response = requests.get(BASE_URL + id_number, params={"api_key": FEC_API})
     response_data = response.json()
     if response.status_code == 200:
-        desgn = response_data["results"][0]["committee_type_full"] if response_data["results"][0]["committee_type_full"] is not None else "UNK"
-        return desgn
+        type = response_data["results"][0]["committee_type_full"] if response_data["results"][0]["committee_type_full"] is not None else "UNK"
+        return type
     else:
         print("Unexpected response code (type): ", response.status_code)
         return "UNK"

@@ -20,11 +20,12 @@ def startup(file1, file2):
         if i % 250 == 0 and actual.value is not None:
             print("Fixing " + actual.value + " at row " + str(i))
         # Find the typo fix in fix ws (with header row)
-        for j in range(2, ws_fix.max_row + 1): 
-            typo = ws_fix.cell(row = j, column = 1)
-            if typo.value == actual.value:
-                fixed = ws_fix.cell(row = j, column = 2)
-                ws_actual.cell(row = i, column = 1, value = fixed.value)
+        if actual.value is not None:
+            for j in range(2, ws_fix.max_row + 1): 
+                typo = ws_fix.cell(row = j, column = 1)
+                if typo.value == actual.value:
+                    fixed = ws_fix.cell(row = j, column = 2)
+                    ws_actual.cell(row = i, column = 1, value = fixed.value)
 
     wb_actual.save(file1)
 
